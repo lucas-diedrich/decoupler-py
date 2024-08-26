@@ -25,13 +25,13 @@ def test_get_gsea_df():
 def test_gsea():
     m = csr_matrix(np.array([[7., 6., 1., -3., -4.]], dtype=np.float32))
     net = pd.Series([np.array([0, 1], dtype=np.int64), np.array([2, 3], dtype=np.int64)], index=['T1', 'T2'])
-    es, nes, pval = gsea(m, net, times=10)
+    es, nes, pval, sizes, hits_r, rnks_r = gsea(m, net, times=10)
     assert nes[0][0] > 0.
     assert nes[0][1] < 0.
-    es, nes, pval = gsea(m.toarray(), net, times=10)
+    es, nes, pval, sizes, hits_r, rnks_r  = gsea(m.toarray(), net, times=10)
     assert nes[0][0] > 0.
     assert nes[0][1] < 0.
-    es, nes, pval = gsea(m.toarray(), net, times=0)
+    es, nes, pval, sizes, hits_r, rnks_r = gsea(m.toarray(), net, times=0)
     assert (nes is None) & (pval is None)
     assert es[0][0] > 0.
     assert es[0][1] < 0.
@@ -46,4 +46,7 @@ def test_run_gsea():
     net = pd.DataFrame([['T1', 'G2'], ['T1', 'G4'], ['T2', 'G3'], ['T2', 'G1']],
                        columns=['source', 'target'])
     run_gsea(adata, net, min_n=0, use_raw=False, times=10, verbose=True)
-    run_gsea(df, net, min_n=0, use_raw=False, times=10, verbose=True)
+    res = run_gsea(df, net, min_n=0, use_raw=False, times=10, verbose=True)
+    assert len(res) == 3
+    res = run_gsea(df, net, min_n=0, use_raw=False, times=10, verbose=True, return_stats=True)
+    assert len(res) == 6

@@ -191,6 +191,9 @@ def gsea(mat, net, times=1000, seed=42, verbose=False):
     es = np.zeros((n_samples, n_fsets), dtype=np.float32)
     nes = np.zeros((n_samples, n_fsets), dtype=np.float32)
     pvals = np.zeros((n_samples, n_fsets), dtype=np.float32)
+    sizes = np.zeros((n_samples, n_fsets), dtype=np.float32)
+    hits_r = np.zeros((n_samples, n_fsets), dtype=np.float32)
+    rnks_r = np.zeros((n_samples, n_fsets), dtype=np.float32)
 
     for i in tqdm(range(n_samples), disable=not verbose):
 
@@ -200,12 +203,12 @@ def gsea(mat, net, times=1000, seed=42, verbose=False):
             row = mat[i]
 
         # Compute GSEA per row
-        es[i], nes[i], pvals[i], _, _, _, _ = nb_gsea(row, net, starts, offsets, times, seed, False)
+        es[i], nes[i], pvals[i], sizes[i], hits_r[i], rnks_r[i], _ = nb_gsea(row, net, starts, offsets, times, seed, False)
 
     if times != 0:
-        return es, nes, pvals
+        return es, nes, pvals, sizes, hits_r, rnks_r
     else:
-        return es, None, None
+        return es, None, None, None, None, None
 
 
 def get_gsea_df(df, stat, net, source='source', target='target', times=1000, min_n=5, seed=42, verbose=False):
@@ -289,7 +292,7 @@ def get_gsea_df(df, stat, net, source='source', target='target', times=1000, min
 
 
 def run_gsea(mat, net, source='source', target='target', times=1000, batch_size=10000, min_n=5, seed=42, verbose=False,
-             use_raw=True):
+             use_raw=True, return_stats=False):
     """
     Gene Set Enrichment Analysis (GSEA).
 
@@ -324,6 +327,8 @@ def run_gsea(mat, net, source='source', target='target', times=1000, batch_size=
         Whether to show progress.
     use_raw : bool
         Use raw attribute of mat if present.
+    return_stats: bool
+        Return additional statistics (geneset sizes, hits ratio, ranks ratio) for GSEA.
 
     Returns
     -------
@@ -333,6 +338,12 @@ def run_gsea(mat, net, source='source', target='target', times=1000, batch_size=
         Normalized GSEA scores. Stored in `.obsm['gsea_norm']` if `mat` is AnnData.
     pvals : DataFrame
         Obtained p-values. Stored in `.obsm['gsea_pvals']` if `mat` is AnnData.
+    sizes: DataFrame (Optional)
+        Size of genesets, returned if `return_stats=True`. Stored in `.obsm['gsea_geneset_sizes']` if `mat` is AnnData.
+    hits_r: DataFrame
+        Hits ratio for geneset, returned if `return_stats=True`. Stored in `.obsm['gsea_hits_r']` if `mat` is AnnData.
+    rnks_r: DataFrame
+        Ranks ratio for geneset, returned if `return_stats=True`. Stored in `.obsm['gsea_rnks_r']` if `mat` is AnnData.
     """
 
     # Extract sparse matrix and array of genes
@@ -354,7 +365,7 @@ def run_gsea(mat, net, source='source', target='target', times=1000, batch_size=
         print('Running gsea on mat with {0} samples and {1} targets for {2} sources.'.format(m.shape[0], len(c), len(net)))
 
     # Run GSEA
-    estimate, norm_e, pvals = gsea(m, net, times=times, seed=seed, verbose=verbose)
+    estimate, norm_e, pvals, sizes, hits_r, ranks_r = gsea(m, net, times=times, seed=seed, verbose=verbose)
 
     # Transform to df
     estimate = pd.DataFrame(estimate, index=r, columns=net.index)
@@ -364,5 +375,14 @@ def run_gsea(mat, net, source='source', target='target', times=1000, batch_size=
         norm_e.name = 'gsea_norm'
         pvals = pd.DataFrame(pvals, index=r, columns=net.index)
         pvals.name = 'gsea_pvals'
+        sizes = pd.DataFrame(sizes, index=r, columns=net.index)
+        sizes.name = "gsea_geneset_sizes"
+        hits_r = pd.DataFrame(hits_r, index=r, columns=net.index)
+        hits_r.name = "gsea_hits_r"
+        ranks_r = pd.DataFrame(ranks_r, index=r, columns=net.index)
+        ranks_r.name = "gsea_ranks_r"
 
-    return return_data(mat=mat, results=(estimate, norm_e, pvals))
+    if return_stats:
+        return return_data(mat=mat, results=(estimate, norm_e, pvals, sizes, hits_r, ranks_r))
+    else:
+        return return_data(mat=mat, results=(estimate, norm_e, pvals))
